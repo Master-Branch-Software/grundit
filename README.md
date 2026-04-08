@@ -25,13 +25,26 @@ Then:
 bundle install
 ```
 
+## Design Philosophy
+
+Grundit operates at the **query and mutation resolver level**, not at the
+field level. Every top-level query or mutation resolver calls `auth()` or
+`auth_index()` to gate access before returning data.
+
+The **Scope** in a policy defines the universe of records a user is allowed to
+see. When `auth()` is called with a single record, the policy constructor runs
+that record through the Scope first. If the user cannot see the record, the
+policy raises immediately — the action method (`show?`, `update?`, etc.) is
+never reached. The Scope acts as a hard visibility boundary, and action methods
+only refine permissions within that visible set.
+
 ## Quick Start
 
 ### 1. Include the authorization module
 
 Mix `Grundit::Authorization` into your base GraphQL classes. This gives every
-resolver access to `auth()`, `auth_index()`, `mark_authorized!`, and
-`current_user`.
+query and mutation resolver access to `auth()`, `auth_index()`,
+`mark_authorized!`, and `current_user`.
 
 ```ruby
 # app/graphql/types/base_object.rb
@@ -175,8 +188,10 @@ end
 
 ### `Grundit::Authorization`
 
-A module you include in any class that has a `context` hash (GraphQL types,
-mutations, subscriptions).
+A module you include in your base GraphQL classes (BaseObject, BaseMutation).
+It provides resolver-level authorization — call `auth()` or `auth_index()` in
+your query and mutation resolvers to gate access through policy classes. This
+is not intended for field-level authorization on individual type attributes.
 
 | Method | Purpose |
 |---|---|
@@ -207,7 +222,10 @@ auth(record, action: :transfer, target_account: other_account)
 ### `Grundit::EnforcementExtension`
 
 A `GraphQL::Schema::FieldExtension` that checks `context[:authorization_called]`
-after every field resolution and raises if authorization was not performed.
+after every query or mutation resolver and raises if authorization was not
+performed. Wire this into your `QueryType` and `BaseMutation` field overrides
+to guarantee that no resolver can return data without calling `auth()` or
+`auth_index()` first.
 
 **Options:**
 
@@ -237,20 +255,24 @@ extension(Grundit::EnforcementExtension,
 
 Base policy class loosely modeled after Pundit.
 
+**Scope** — the most important piece. The Scope defines the universe of
+records a user is allowed to see. Subclass `Grundit::ApplicationPolicy::Scope`
+and implement `#resolve` to return only the records visible to the given
+`user`. This is used by `auth_index()` to filter collections and by the
+policy constructor to verify visibility of a single record.
+
 **Constructor** — when a `record` is passed, the constructor runs it through
-`Scope#resolve.find(record.id)` to verify the record is visible to the user.
-If the scope excludes the record, an error is raised immediately — the
-individual action method never runs.
+`Scope#resolve.find(record.id)`. If the record is not in the user's visible
+set, an error is raised immediately — the action method (`show?`, `update?`,
+etc.) is never reached. The Scope is the first line of defense.
 
 **`default_permissions?`** — checks the user's role against the configured
 `default_permission_roles` list. Accepts `:additional_roles` and
 `:except_roles` keyword arguments for per-action tuning.
 
 **CRUD stubs** — `show?`, `create?`, `update?`, `destroy?` all delegate to
-`default_permissions?`. Override them in your concrete policies.
-
-**Scope** — subclass `Grundit::ApplicationPolicy::Scope` and implement
-`#resolve` to filter the `scope` relation for the given `user`.
+`default_permissions?`. Override them in your concrete policies. These only
+run if the record passes the Scope check first.
 
 ### `Grundit::CoreExt::ToBool` (opt-in)
 

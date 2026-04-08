@@ -1,18 +1,22 @@
-# Grundit::Authorization provides auth() and auth_index() for GraphQL resolvers.
+# Grundit::Authorization provides auth() and auth_index() for GraphQL query
+# and mutation resolvers. This is not intended for field-level authorization —
+# it operates at the resolver level where you fetch and return data.
 #
-# Include this module in your base object and mutation classes to get
-# Pundit-style authorization that works with graphql-ruby's context hash.
+# Include this module in your BaseObject and BaseMutation classes. Call auth()
+# or auth_index() in every query/mutation resolver to gate access through
+# Pundit-style policy classes.
 #
 # Example:
 #   class Types::BaseObject < GraphQL::Schema::Object
 #     include Grundit::Authorization
 #   end
 #
-#   # In a resolver:
+#   # In a query resolver:
 #   def user(id:)
 #     auth(User.find(id))
 #   end
 #
+#   # In an index resolver:
 #   def users
 #     auth_index(:user, User.all)
 #   end
