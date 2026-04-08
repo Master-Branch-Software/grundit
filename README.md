@@ -80,6 +80,41 @@ module Mutations
 end
 ```
 
+### 1b. Typical Rails app setup
+
+Many Rails GraphQL apps already have application-level base classes for queries
+and mutations. In that case, insert Grundit once in that inheritance chain and
+keep the rest of your app inheriting normally.
+
+```ruby
+# app/graphql/application_query.rb
+class ApplicationQuery < GrunditQuery
+  field_class Types::BaseField
+  connection_type_class Types::BaseConnection
+  edge_type_class Types::BaseEdge
+end
+
+# app/graphql/application_mutation.rb
+class ApplicationMutation < GrunditMutation
+  argument_class Types::BaseArgument
+  field_class Types::BaseField
+  input_object_class Types::BaseInputObject
+  object_class Types::BaseObject
+end
+
+# app/graphql/types/query_type.rb
+module Types
+  class QueryType < ApplicationQuery
+  end
+end
+
+# app/graphql/mutations/user_update.rb
+module Mutations
+  class UserUpdate < ApplicationMutation
+  end
+end
+```
+
 ### 2. Write policies
 
 Inherit from `Grundit::ApplicationPolicy`. Define action methods that return
@@ -176,6 +211,30 @@ end
 
 If a developer forgets to call `auth()` or `auth_index()` in either a query
 field or a mutation, the enforcement extension raises immediately.
+
+### 5. Pass custom context into a policy when needed
+
+Any option you pass to `auth(...)` other than `:current_user`, `:action`, and
+`:policy_class` is forwarded to the policy constructor in `options`. This is
+useful when the policy needs extra context beyond the user and record.
+
+```ruby
+def move_project(id:, destination_account_id:)
+  destination_account = Account.find(destination_account_id)
+  project = auth(Project.find(id),
+                 action: :move,
+                 destination_account: destination_account)
+
+  project.move_to!(destination_account)
+  { :project => project }
+end
+
+class ProjectPolicy < Grundit::ApplicationPolicy
+  def move?
+    user.admin? && options[:destination_account].present?
+  end
+end
+```
 
 ## Configuration
 
