@@ -277,26 +277,6 @@ etc.) is never reached. The Scope is the first line of defense.
 `default_permissions?`. Override them in your concrete policies. These only
 run if the record passes the Scope check first.
 
-### `Grundit::CoreExt::ToBool` (opt-in)
-
-A monkey patch that adds `#to_bool` to `String`, `TrueClass`, `FalseClass`,
-and `NilClass`. Useful when boolean values arrive as strings from form posts
-or GraphQL variables.
-
-This is **not loaded by default**. Require it explicitly:
-
-```ruby
-require "grundit/core_ext/to_bool"
-
-"true".to_bool   # => true
-"false".to_bool  # => false
-"FALSE".to_bool  # => false
-"".to_bool       # => false
-true.to_bool     # => true
-false.to_bool    # => false
-nil.to_bool      # => false
-"maybe".to_bool  # => raises ArgumentError
-```
 
 ## Migration Guide
 
@@ -352,13 +332,6 @@ Grundit.configure do |config|
 end
 ```
 
-### 5. Optionally load `to_bool`
-
-If you had a `config/initializers/to_bool.rb`, you can replace it with:
-
-```ruby
-require "grundit/core_ext/to_bool"
-```
 
 ## Requirements
 
