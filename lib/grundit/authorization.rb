@@ -2,14 +2,14 @@
 # and mutation resolvers. This is not intended for field-level authorization —
 # it operates at the resolver level where you fetch and return data.
 #
-# Include this module where your top-level query and mutation resolvers live —
-# usually Types::QueryType and Mutations::BaseMutation. Call auth() or
-# auth_index() inside query fields and mutation resolvers to gate access
-# through Pundit-style policy classes.
+# This module is automatically included by GrunditQuery and GrunditMutation.
+# If you do not use those base classes, include it manually where your
+# top-level query and mutation resolvers live. Call auth() or auth_index()
+# inside query fields and mutation resolvers to gate access through
+# Pundit-style policy classes.
 #
 # Example:
-#   class Types::QueryType < Types::BaseObject
-#     include Grundit::Authorization
+#   class Types::QueryType < GrunditQuery
 #   end
 #
 #   # In a query resolver:

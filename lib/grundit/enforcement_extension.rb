@@ -2,7 +2,10 @@
 # top-level query fields and mutation fields. It ensures each resolver calls
 # auth() or auth_index() before returning data.
 #
-# Usage — override `self.field` in your QueryType or BaseMutation:
+# This powers GrunditQuery and GrunditMutation automatically. You only need to
+# wire it manually if you are not deriving from those base classes.
+#
+# Manual usage — override `self.field` in your QueryType or BaseMutation:
 #
 #   class Types::QueryType < Types::BaseObject
 #     def self.field(*args, authorize: true, **kwargs, &block)

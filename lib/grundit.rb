@@ -6,6 +6,8 @@ require_relative "grundit/version"
 require_relative "grundit/authorization"
 require_relative "grundit/enforcement_extension"
 require_relative "grundit/application_policy"
+require_relative "grundit/grundit_query"
+require_relative "grundit/grundit_mutation"
 
 module Grundit
   class Configuration

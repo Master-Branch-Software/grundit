@@ -2,14 +2,16 @@
 
 A Pundit-compatible, GraphQL-centric authorization framework for Rails.
 
-Grundit gives you three things:
+Grundit gives you four things:
 
-1. **`auth()` / `auth_index()`** — authorize single objects or collections
-   from any GraphQL resolver using Pundit-style policy classes.
-2. **Enforcement** — a graphql-ruby field extension that raises if a resolver
-   forgets to call `auth()` or `auth_index()`.
-3. **Base policy** — a `Grundit::ApplicationPolicy` with scope-based
-   visibility, configurable role defaults, and CRUD stubs.
+1. **`GrunditQuery`** — a GraphQL query base class with authorization and
+   enforcement already wired in
+2. **`GrunditMutation`** — a GraphQL mutation base class with authorization and
+   enforcement already wired in
+3. **`auth()` / `auth_index()`** — authorize single objects or collections
+   from top-level query fields and mutations using Pundit-style policy classes
+4. **Base policy** — a `Grundit::ApplicationPolicy` with scope-based
+   visibility, configurable role defaults, and CRUD stubs
 
 ## Installation
 
@@ -39,32 +41,24 @@ never reached. The Scope acts as a hard visibility boundary, and action methods
 only refine permissions within that visible set.
 
 ## Quick Start
-### 1. Put authorization and enforcement in the right places
+### 1. Derive from `GrunditQuery` and `GrunditMutation`
 
 Grundit is meant for **top-level query fields and mutations**.
 
-- Include `Grundit::Authorization` in `Types::QueryType` and
-  `Mutations::BaseMutation` so query fields and concrete mutations can call
-  `auth()` and `auth_index()`
-- Put `Grundit::EnforcementExtension` on `QueryType` fields and mutation fields
-  so developers cannot forget to authorize
+- `GrunditQuery` gives `QueryType` both authorization and enforcement
+- `GrunditMutation` gives your mutation base class both authorization and
+  enforcement
+- Using Grundit should be a simple insertion of these classes in your
+  inheritance hierarchy
 
 ```ruby
 
 # app/graphql/types/query_type.rb
 module Types
-  class QueryType < Types::BaseObject
-    include Grundit::Authorization
-    def self.field(*args, authorize: true, **kwargs, &block)
-      field_name = args[0]
-
-      super(*args, **kwargs) do
-        extension(Grundit::EnforcementExtension,
-                  authorize: authorize,
-                  field_name: field_name)
-        instance_eval(&block) if block
-      end
-    end
+  class QueryType < GrunditQuery
+    field_class Types::BaseField
+    connection_type_class Types::BaseConnection
+    edge_type_class Types::BaseEdge
 
     field :me, UserType, null: false, authorize: false
 
@@ -77,17 +71,11 @@ end
 
 # app/graphql/mutations/base_mutation.rb
 module Mutations
-  class BaseMutation < GraphQL::Schema::RelayClassicMutation
-    include Grundit::Authorization
-
-    def self.field(*args, **kwargs, &block)
-      super(*args, **kwargs) do
-        extension(Grundit::EnforcementExtension,
-                  authorize: true,
-                  field_name: args[0])
-        instance_eval(&block) if block
-      end
-    end
+  class BaseMutation < GrunditMutation
+    argument_class Types::BaseArgument
+    field_class Types::BaseField
+    input_object_class Types::BaseInputObject
+    object_class Types::BaseObject
   end
 end
 ```
@@ -135,7 +123,7 @@ This is the core pattern: declare a field on `QueryType`, then call `auth()` or
 
 ```ruby
 module Types
-  class QueryType < Types::BaseObject
+  class QueryType < GrunditQuery
     field :organizations, [OrganizationType], null: false do
       argument :filters, OrganizationFilter, required: true
     end
@@ -206,13 +194,32 @@ end
 
 ## Components
 
+### `GrunditQuery`
+
+A query base class for top-level GraphQL query fields. It:
+
+- inherits from `GraphQL::Schema::Object`
+- includes `Grundit::Authorization`
+- wires `Grundit::EnforcementExtension` into `field(...)`
+
+Use it as the parent class for your app's `QueryType`.
+
+### `GrunditMutation`
+
+A mutation base class for top-level GraphQL mutations. It:
+
+- inherits from `GraphQL::Schema::RelayClassicMutation`
+- includes `Grundit::Authorization`
+- wires `Grundit::EnforcementExtension` into `field(...)`
+
+Use it as the parent class for your app's mutation base class.
+
 ### `Grundit::Authorization`
 
-A module usually included in `Types::QueryType` and
-`Mutations::BaseMutation` so query fields and concrete mutations can call
-`auth()` and `auth_index()` inside their resolver methods. This is intended
-for top-level query fields and mutations, not for field-level authorization on
-individual type attributes.
+The authorization API used by `GrunditQuery` and `GrunditMutation`. If you are
+using those base classes, you usually do not need to include this module
+yourself. This is intended for top-level query fields and mutations, not for
+field-level authorization on individual type attributes.
 
 | Method | Purpose |
 |---|---|
@@ -242,12 +249,10 @@ auth(record, action: :transfer, target_account: other_account)
 
 ### `Grundit::EnforcementExtension`
 
-A `GraphQL::Schema::FieldExtension` intended to be attached to top-level query
-fields and mutation fields. It checks `context[:authorization_called]` after
-the resolver runs and raises if authorization was not performed. Wire this into
-your `QueryType` and `BaseMutation` field overrides to guarantee that no query
-field or mutation can return data without calling `auth()` or `auth_index()`
-first.
+A `GraphQL::Schema::FieldExtension` used internally by `GrunditQuery` and
+`GrunditMutation`. It checks `context[:authorization_called]` after the
+resolver runs and raises if authorization was not performed. You normally do
+not need to attach it manually unless you are building your own base classes.
 
 **Options:**
 
@@ -325,40 +330,29 @@ If you are coming from an app that uses inline `GraphQlAuthorization` and
 
 ### 1. Replace `GraphQlAuthorization`
 
-Delete `app/graphql/graph_ql_authorization.rb`. Add
-`include Grundit::Authorization` to `QueryType` and `BaseMutation`:
+Delete `app/graphql/graph_ql_authorization.rb`. Change your inheritance to
+`GrunditQuery` and `GrunditMutation`:
 
 ```ruby
 module Types
-  class QueryType < Types::BaseObject
-    include Grundit::Authorization
+  class QueryType < GrunditQuery
   end
 end
 
 module Mutations
-  class BaseMutation < GraphQL::Schema::RelayClassicMutation
-    include Grundit::Authorization
+  class BaseMutation < GrunditMutation
   end
 end
 ```
 
 ### 2. Replace `AuthorizationEnforcementExtension`
 
-Delete `app/graphql/authorization_enforcement_extension.rb`. In your
-`QueryType` and `BaseMutation` field overrides, replace:
+Delete `app/graphql/authorization_enforcement_extension.rb`. If you switch to
+`GrunditQuery` and `GrunditMutation`, you do not need that separate class
+anymore because enforcement is already built in.
 
-```ruby
-extension(AuthorizationEnforcementExtension, ...)
-```
-
-with:
-
-```ruby
-extension(Grundit::EnforcementExtension, ...)
-```
-
-If you used `check_force_password_change: true`, move that logic into a
-`:before_resolve` lambda (see the EnforcementExtension section above).
+If you used `check_force_password_change: true`, move that logic into an
+override or custom field wiring around your query/mutation base classes.
 
 ### 3. Update `ApplicationPolicy`
 
