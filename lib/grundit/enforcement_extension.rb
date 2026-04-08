@@ -17,24 +17,9 @@
 #       end
 #     end
 #   end
-#
-# Options passed via `extension()`:
-#   :authorize  - set to false to skip enforcement for a specific field
-#   :field_name - the field name (used in error messages)
-#   :before_resolve - an optional callable (lambda/proc) receiving (context, field_name)
-#                     that runs before the resolver. Raise to block execution.
 
 module Grundit
   class EnforcementExtension < GraphQL::Schema::FieldExtension
-    def resolve(object:, arguments:, context:)
-      field_name = options[:field_name].to_s
-
-      if options[:before_resolve] && !excluded_field?(field_name)
-        options[:before_resolve].call(context, field_name)
-      end
-
-      yield(object, arguments)
-    end
 
     def after_resolve(value:, context:, **_rest)
       if !options[:authorize]

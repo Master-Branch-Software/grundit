@@ -40,23 +40,6 @@ RSpec.describe Grundit::EnforcementExtension do
       define_method(:node_field) do
         "relay node"
       end
-
-      field :hooked_field, String, null: true do
-        extension(enforcement_ext,
-                  :authorize => true,
-                  :field_name => "hooked_field",
-                  :before_resolve => ->(ctx, _field) {
-                    if ctx[:block_resolve]
-                      raise GraphQL::ExecutionError, "Blocked by before_resolve hook."
-                    end
-                  })
-      end
-
-      define_method(:hooked_field) do
-        mark_authorized!
-
-        "hook passed"
-      end
     end
 
     Class.new(GraphQL::Schema) do
@@ -95,18 +78,6 @@ RSpec.describe Grundit::EnforcementExtension do
     expect(result["errors"]).to be_nil
   end
 
-  it "calls the before_resolve hook when provided" do
-    result = execute("{ hookedField }", :context => { :block_resolve => true })
-
-    expect(result["errors"].first["message"]).to match(/Blocked by before_resolve hook/)
-  end
-
-  it "passes through before_resolve when the hook does not raise" do
-    result = execute("{ hookedField }", :context => {})
-
-    expect(result["data"]["hookedField"]).to eq "hook passed"
-    expect(result["errors"]).to be_nil
-  end
 
   it "resets the authorization flag after a successful field" do
     context = {}

@@ -254,30 +254,6 @@ A `GraphQL::Schema::FieldExtension` used internally by `GrunditQuery` and
 resolver runs and raises if authorization was not performed. You normally do
 not need to attach it manually unless you are building your own base classes.
 
-**Options:**
-
-- `:authorize` — `true` (default) or `false` to skip enforcement for a field.
-- `:field_name` — used in error messages.
-- `:before_resolve` — an optional lambda/proc called before the resolver runs.
-  Receives `(context, field_name)`. Raise inside it to block execution.
-
-```ruby
-# Example: block all resolvers when password change is required
-FORCE_PW_CHECK = ->(context, field_name) {
-  if context[:current_user]&.force_password_change?
-    raise GraphQL::ExecutionError.new(
-      "Password change required.",
-      extensions: { "code" => "FORCE_PASSWORD_CHANGE" }
-    )
-  end
-}
-
-extension(Grundit::EnforcementExtension,
-          authorize: true,
-          field_name: field_name,
-          before_resolve: FORCE_PW_CHECK)
-```
-
 ### `Grundit::ApplicationPolicy`
 
 Base policy class loosely modeled after Pundit.
@@ -350,9 +326,8 @@ end
 Delete `app/graphql/authorization_enforcement_extension.rb`. If you switch to
 `GrunditQuery` and `GrunditMutation`, you do not need that separate class
 anymore because enforcement is already built in.
-
-If you used `check_force_password_change: true`, move that logic into an
-override or custom field wiring around your query/mutation base classes.
+Any application-specific prechecks should stay in your app-level query or
+mutation base classes, not in Grundit itself.
 
 ### 3. Update `ApplicationPolicy`
 
