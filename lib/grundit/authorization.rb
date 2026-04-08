@@ -2,9 +2,10 @@
 # and mutation resolvers. This is not intended for field-level authorization —
 # it operates at the resolver level where you fetch and return data.
 #
-# Include this module in your BaseObject and BaseMutation classes. Call auth()
-# or auth_index() in every query/mutation resolver to gate access through
-# Pundit-style policy classes.
+# Include this module where your top-level query and mutation resolvers can use
+# it — usually Types::BaseObject and Mutations::BaseMutation. Call auth() or
+# auth_index() inside query fields and mutation resolvers to gate access
+# through Pundit-style policy classes.
 #
 # Example:
 #   class Types::BaseObject < GraphQL::Schema::Object

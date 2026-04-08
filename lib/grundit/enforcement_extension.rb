@@ -1,5 +1,6 @@
-# Grundit::EnforcementExtension is a graphql-ruby field extension that ensures
-# every resolver calls auth() or auth_index() before returning data.
+# Grundit::EnforcementExtension is a graphql-ruby field extension intended for
+# top-level query fields and mutation fields. It ensures each resolver calls
+# auth() or auth_index() before returning data.
 #
 # Usage — override `self.field` in your QueryType or BaseMutation:
 #

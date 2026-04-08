@@ -39,12 +39,15 @@ never reached. The Scope acts as a hard visibility boundary, and action methods
 only refine permissions within that visible set.
 
 ## Quick Start
+### 1. Put authorization and enforcement in the right places
 
-### 1. Include the authorization module
+Grundit is meant for **top-level query fields and mutations**.
 
-Mix `Grundit::Authorization` into your base GraphQL classes. This gives every
-query and mutation resolver access to `auth()`, `auth_index()`,
-`mark_authorized!`, and `current_user`.
+- Include `Grundit::Authorization` in `Types::BaseObject` and
+  `Mutations::BaseMutation` so `QueryType` and concrete mutations can call
+  `auth()` and `auth_index()`
+- Put `Grundit::EnforcementExtension` on `QueryType` fields and mutation fields
+  so developers cannot forget to authorize
 
 ```ruby
 # app/graphql/types/base_object.rb
@@ -54,10 +57,42 @@ module Types
   end
 end
 
+# app/graphql/types/query_type.rb
+module Types
+  class QueryType < Types::BaseObject
+    def self.field(*args, authorize: true, **kwargs, &block)
+      field_name = args[0]
+
+      super(*args, **kwargs) do
+        extension(Grundit::EnforcementExtension,
+                  authorize: authorize,
+                  field_name: field_name)
+        instance_eval(&block) if block
+      end
+    end
+
+    field :me, UserType, null: false, authorize: false
+
+    def me
+      mark_authorized!
+      current_user
+    end
+  end
+end
+
 # app/graphql/mutations/base_mutation.rb
 module Mutations
   class BaseMutation < GraphQL::Schema::RelayClassicMutation
     include Grundit::Authorization
+
+    def self.field(*args, **kwargs, &block)
+      super(*args, **kwargs) do
+        extension(Grundit::EnforcementExtension,
+                  authorize: true,
+                  field_name: args[0])
+        instance_eval(&block) if block
+      end
+    end
   end
 end
 ```
@@ -98,76 +133,66 @@ class UserPolicy < Grundit::ApplicationPolicy
 end
 ```
 
-### 3. Authorize in resolvers
+### 3. Use `auth()` and `auth_index()` inside query fields
+
+This is the core pattern: declare a field on `QueryType`, then call `auth()` or
+`auth_index()` inside that field's resolver method.
 
 ```ruby
-# Single object — looks up UserPolicy, calls #show? by default
-def user(id:)
-  auth(User.find(id))
-end
-
-# Single object with explicit action
-def update_user(id:, params:)
-  user = auth(User.find(id), action: :update)
-  user.update!(params)
-  user
-end
-
-# Collection — runs UserPolicy::Scope#resolve
-def users
-  auth_index(:user, User.all)
-end
-```
-
-### 4. Enforce authorization (optional but recommended)
-
-Wire up `Grundit::EnforcementExtension` so that any resolver that forgets to
-call `auth()` or `auth_index()` raises an error instead of silently leaking
-data.
-
-```ruby
-# app/graphql/types/query_type.rb
 module Types
   class QueryType < Types::BaseObject
-    def self.field(*args, authorize: true, **kwargs, &block)
-      field_name = args[0]
-
-      super(*args, **kwargs) do
-        extension(Grundit::EnforcementExtension,
-                  authorize: authorize,
-                  field_name: field_name)
-        instance_eval(&block) if block
-      end
+    field :organizations, [OrganizationType], null: false do
+      argument :filters, OrganizationFilter, required: true
     end
 
-    # Fields that handle auth manually can opt out:
-    field :public_status, String, null: false, authorize: false
+    def organizations(**params)
+      filtered_organizations(params[:filters])
+    end
 
-    def public_status
-      "ok"
+    field :organization, OrganizationType, null: true do
+      argument :id, ID, required: true
+    end
+
+    def organization(id:)
+      auth(Organization.find(id))
+    end
+
+    private
+
+    def filtered_organizations(filter)
+      auth_index(:organization, Organization.filtered_scope(filter))
     end
   end
 end
 ```
 
-The same pattern works for mutations:
+Single-record queries use `auth(...)`. Index queries use `auth_index(...)`.
+
+### 4. Use `auth()` inside mutations
+
+Mutations follow the same idea: inside `resolve`, authorize the target record
+or new record before continuing.
 
 ```ruby
 module Mutations
-  class BaseMutation < GraphQL::Schema::RelayClassicMutation
-    include Grundit::Authorization
+  class UserUpdate < BaseMutation
+    argument :id, ID, required: true
+    argument :params, Types::UserUpdateParamsInput, required: true
 
-    def self.field(*args, **kwargs, &block)
-      super(*args, **kwargs) do
-        extension(Grundit::EnforcementExtension,
-                  authorize: true,
-                  field_name: args[0])
-        instance_eval(&block) if block
-      end
+    field :user, Types::UserType, null: false
+
+    def resolve(id:, params:)
+      user = auth(User.find(id), action: :update)
+      user.update!(params.to_h)
+
+      { :user => user }
     end
   end
 end
 ```
+
+If a developer forgets to call `auth()` or `auth_index()` in either a query
+field or a mutation, the enforcement extension raises immediately.
 
 ## Configuration
 
@@ -188,10 +213,11 @@ end
 
 ### `Grundit::Authorization`
 
-A module you include in your base GraphQL classes (BaseObject, BaseMutation).
-It provides resolver-level authorization — call `auth()` or `auth_index()` in
-your query and mutation resolvers to gate access through policy classes. This
-is not intended for field-level authorization on individual type attributes.
+A module usually included in `Types::BaseObject` and `Mutations::BaseMutation`
+so that `QueryType` and concrete mutations can call `auth()` and
+`auth_index()` inside their resolver methods. This is intended for top-level
+query fields and mutations, not for field-level authorization on individual
+type attributes.
 
 | Method | Purpose |
 |---|---|
@@ -221,11 +247,12 @@ auth(record, action: :transfer, target_account: other_account)
 
 ### `Grundit::EnforcementExtension`
 
-A `GraphQL::Schema::FieldExtension` that checks `context[:authorization_called]`
-after every query or mutation resolver and raises if authorization was not
-performed. Wire this into your `QueryType` and `BaseMutation` field overrides
-to guarantee that no resolver can return data without calling `auth()` or
-`auth_index()` first.
+A `GraphQL::Schema::FieldExtension` intended to be attached to top-level query
+fields and mutation fields. It checks `context[:authorization_called]` after
+the resolver runs and raises if authorization was not performed. Wire this into
+your `QueryType` and `BaseMutation` field overrides to guarantee that no query
+field or mutation can return data without calling `auth()` or `auth_index()`
+first.
 
 **Options:**
 
