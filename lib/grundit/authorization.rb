@@ -2,13 +2,13 @@
 # and mutation resolvers. This is not intended for field-level authorization —
 # it operates at the resolver level where you fetch and return data.
 #
-# Include this module where your top-level query and mutation resolvers can use
-# it — usually Types::BaseObject and Mutations::BaseMutation. Call auth() or
+# Include this module where your top-level query and mutation resolvers live —
+# usually Types::QueryType and Mutations::BaseMutation. Call auth() or
 # auth_index() inside query fields and mutation resolvers to gate access
 # through Pundit-style policy classes.
 #
 # Example:
-#   class Types::BaseObject < GraphQL::Schema::Object
+#   class Types::QueryType < Types::BaseObject
 #     include Grundit::Authorization
 #   end
 #

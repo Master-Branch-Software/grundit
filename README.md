@@ -43,23 +43,18 @@ only refine permissions within that visible set.
 
 Grundit is meant for **top-level query fields and mutations**.
 
-- Include `Grundit::Authorization` in `Types::BaseObject` and
-  `Mutations::BaseMutation` so `QueryType` and concrete mutations can call
+- Include `Grundit::Authorization` in `Types::QueryType` and
+  `Mutations::BaseMutation` so query fields and concrete mutations can call
   `auth()` and `auth_index()`
 - Put `Grundit::EnforcementExtension` on `QueryType` fields and mutation fields
   so developers cannot forget to authorize
 
 ```ruby
-# app/graphql/types/base_object.rb
-module Types
-  class BaseObject < GraphQL::Schema::Object
-    include Grundit::Authorization
-  end
-end
 
 # app/graphql/types/query_type.rb
 module Types
   class QueryType < Types::BaseObject
+    include Grundit::Authorization
     def self.field(*args, authorize: true, **kwargs, &block)
       field_name = args[0]
 
@@ -213,11 +208,11 @@ end
 
 ### `Grundit::Authorization`
 
-A module usually included in `Types::BaseObject` and `Mutations::BaseMutation`
-so that `QueryType` and concrete mutations can call `auth()` and
-`auth_index()` inside their resolver methods. This is intended for top-level
-query fields and mutations, not for field-level authorization on individual
-type attributes.
+A module usually included in `Types::QueryType` and
+`Mutations::BaseMutation` so query fields and concrete mutations can call
+`auth()` and `auth_index()` inside their resolver methods. This is intended
+for top-level query fields and mutations, not for field-level authorization on
+individual type attributes.
 
 | Method | Purpose |
 |---|---|
@@ -330,11 +325,21 @@ If you are coming from an app that uses inline `GraphQlAuthorization` and
 
 ### 1. Replace `GraphQlAuthorization`
 
-Delete `app/graphql/graph_ql_authorization.rb`. Change every `include
-GraphQlAuthorization` to:
+Delete `app/graphql/graph_ql_authorization.rb`. Add
+`include Grundit::Authorization` to `QueryType` and `BaseMutation`:
 
 ```ruby
-include Grundit::Authorization
+module Types
+  class QueryType < Types::BaseObject
+    include Grundit::Authorization
+  end
+end
+
+module Mutations
+  class BaseMutation < GraphQL::Schema::RelayClassicMutation
+    include Grundit::Authorization
+  end
+end
 ```
 
 ### 2. Replace `AuthorizationEnforcementExtension`
