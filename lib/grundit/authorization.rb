@@ -67,7 +67,7 @@ module Grundit
       # Custom options to be passed to and used by the policy.
       custom_options = opts.except(*default_options.keys)
 
-      policy = resolve_policy_class(object, custom_options).new(opts[:current_user], object, custom_options)
+      policy = resolve_policy_class(object, opts).new(opts[:current_user], object, custom_options)
 
       if !policy.send("#{opts[:action]}?")
         raise GraphQL::ExecutionError, "Not authorized."
