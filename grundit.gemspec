@@ -1,6 +1,6 @@
 Gem::Specification.new do |spec|
   spec.name          = "grundit"
-  spec.version       = "0.1.0"
+  spec.version       = "0.1.1"
   spec.authors       = ["MasterBranch Software, LLC"]
   spec.email         = ["ray@masterbranchsoftware.com"]
   spec.summary       = "Pundit-compatible, GraphQL-centric authorization for Rails."
