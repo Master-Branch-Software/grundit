@@ -131,12 +131,11 @@ RSpec.describe Grundit::Authorization do
   end
 
   describe "#mark_authorized!" do
-    it "sets the authorization flag in context" do
+    it "is private" do
       harness = AuthorizationTestHarness.new(admin)
 
-      harness.mark_authorized!
-
-      expect(harness.context[:authorization_called]).to be true
+      expect(harness.private_methods).to include(:mark_authorized!)
+      expect { harness.mark_authorized! }.to raise_error(NoMethodError)
     end
   end
 

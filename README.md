@@ -63,7 +63,6 @@ module Types
     field :me, UserType, null: false, authorize: false
 
     def me
-      mark_authorized!
       current_user
     end
   end
@@ -284,9 +283,13 @@ field-level authorization on individual type attributes.
 |---|---|
 | `auth(object, options = {})` | Authorize a single record. Resolves the policy class, instantiates it, and calls the action method. Returns the object on success, raises `GraphQL::ExecutionError` on failure. |
 | `auth_index(policy_class, collection, options = {})` | Authorize a collection. Runs `Policy::Scope#resolve` and returns the scoped result. |
-| `mark_authorized!` | Manually flag the current field as authorized (for fields that handle auth outside the normal policy flow). |
 | `authorization_called?` | Check whether auth has been called in the current resolution. |
 | `current_user` | Reads `context[:current_user]`. |
+
+`mark_authorized!` is private. It is called internally by `auth()` and
+`auth_index()`. Fields that do not require authorization should use
+`authorize: false` on the field definition instead of calling
+`mark_authorized!` directly.
 
 #### Policy class resolution
 

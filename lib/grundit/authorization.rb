@@ -28,10 +28,6 @@ module Grundit
       context[:current_user]
     end
 
-    def mark_authorized!
-      context[:authorization_called] = true
-    end
-
     def authorization_called?
       context[:authorization_called] == true
     end
@@ -98,6 +94,10 @@ module Grundit
     end
 
     private
+
+    def mark_authorized!
+      context[:authorization_called] = true
+    end
 
     # Determine the policy class from an explicit option, a symbol, or the object's class.
     def resolve_policy_class(object, options)
